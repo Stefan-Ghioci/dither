@@ -1,80 +1,76 @@
 package app;
 
 import javafx.embed.swing.SwingFXUtils;
-import javafx.geometry.Insets;
-import javafx.scene.control.ListCell;
-import javafx.scene.control.ListView;
 import javafx.scene.control.Spinner;
 import javafx.scene.control.SpinnerValueFactory;
 import javafx.scene.image.*;
 import javafx.scene.layout.AnchorPane;
-import javafx.scene.layout.Background;
-import javafx.scene.layout.BackgroundFill;
-import javafx.scene.layout.CornerRadii;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
+import javafx.scene.text.Text;
 import javafx.stage.FileChooser;
-import javafx.util.Callback;
 
 import javax.imageio.ImageIO;
 import java.io.File;
 import java.io.IOException;
-import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.List;
-
-import static java.lang.Math.pow;
 
 public class Controller {
     public AnchorPane root;
     public ImageView originalImageView;
     public ImageView editedImageView;
-    public ListView<Color> paletteListView;
-    public Spinner factorSpinner;
-    FileChooser fileChooser = new FileChooser();
+    public Spinner<Integer> factorSpinner;
+    public Text paletteText;
 
-    //TODO: refactor color palette list view into pure rectangles
+    FileChooser fileChooser = new FileChooser();
+    List<Color> palette = new ArrayList<>();
+    List<Rectangle> rectangles = new ArrayList<>();
+
     public void initialize() {
+
         FileChooser.ExtensionFilter filter = new FileChooser.ExtensionFilter("Images", "*.png", "*.bmp", "*.jpg");
         fileChooser.getExtensionFilters().add(filter);
 
-        paletteListView.setCellFactory(new Callback<>() {
-            @Override
-            public ListCell<Color> call(ListView<Color> colorListView) {
-                return new ListCell<>() {
-                    @Override
-                    protected void updateItem(Color color, boolean empty) {
-                        super.updateItem(color, empty);
-
-                        if (color != null) {
-                            setBackground(new Background(new BackgroundFill(color, CornerRadii.EMPTY, Insets.EMPTY)));
-                            int paletteSize = 2;
-                            if ((int) factorSpinner.getValue() != 0)
-                                paletteSize = (int) (pow((int) factorSpinner.getValue() + 1, 3));
-                            setPrefWidth(colorListView.getWidth() / paletteSize);
-                        } else {
-                            setBackground(new Background(new BackgroundFill(Color.WHITE, CornerRadii.EMPTY, Insets.EMPTY)));
-                        }
-                    }
-
-                };
-            }
-        });
-
         factorSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(0, 256));
         factorSpinner.setOnMouseClicked(mouseEvent -> {
-            int factor = (int) factorSpinner.getValue();
-            paletteListView.getItems().clear();
+            int factor = factorSpinner.getValue();
+            palette.clear();
+
             if (factor == 0) {
-                paletteListView.getItems().add(Color.BLACK);
-                paletteListView.getItems().add(Color.WHITE);
+                addColorToPalette(Color.BLACK);
+                addColorToPalette(Color.WHITE);
             } else
                 for (int x = 0; x <= factor; x++)
                     for (int y = 0; y <= factor; y++)
                         for (int z = 0; z <= factor; z++)
-                            paletteListView.getItems().add(new Color((double) x / factor, (double) y / factor, (double) z / factor, 1.0));
+                            addColorToPalette(new Color((double) x / factor, (double) y / factor, (double) z / factor, 1.0));
 
         });
         factorSpinner.getOnMouseClicked().handle(null);
 
+    }
+
+    private void addColorToPalette(Color newColor) {
+        palette.add(newColor);
+        rectangles.forEach(node -> root.getChildren().remove(node));
+        rectangles.clear();
+
+        double x = 229.0;
+        double y = 419.0;
+
+        double width = 658.0 / palette.size();
+        double height = 78.0;
+
+        for (Color color : palette) {
+            Rectangle rectangle = new Rectangle(x, y, width, height);
+            rectangle.setFill(color);
+            root.getChildren().add(rectangle);
+            rectangles.add(rectangle);
+            x += width;
+        }
+
+        paletteText.setText(palette.size() + "-color palette");
     }
 
     public void loadImage() {
@@ -82,6 +78,7 @@ public class Controller {
         if (file != null) {
             Image image = new Image(file.toURI().toString());
             originalImageView.setImage(image);
+            editedImageView.setImage(image);
         }
     }
 
@@ -95,6 +92,7 @@ public class Controller {
         }
     }
 
+    @SuppressWarnings("ConstantConditions")
     public void applyDither() {
         Image image = originalImageView.getImage();
         PixelReader pixelReader = image.getPixelReader();
@@ -111,14 +109,11 @@ public class Controller {
             for (int x = 0; x < width; x++)
                 pixelMatrix[x][y] = pixelReader.getColor(x, y);
 
-        List<Color> palette = paletteListView.getItems();
-        palette.sort(Comparator.comparing(Color::toString));
-
         for (int y = 0; y < height; y++)
             for (int x = 0; x < width; x++) {
                 Color oldColor = pixelMatrix[x][y];
 
-                Color newColor = Processing.quantize(oldColor, (Integer) factorSpinner.getValue());
+                Color newColor = Processing.quantize(oldColor, factorSpinner.getValue());
 
                 pixelMatrix[x][y] = newColor;
 
@@ -131,15 +126,15 @@ public class Controller {
                 } catch (IndexOutOfBoundsException ignored) {
                 }
                 try {
-                    pixelMatrix[x - 1][y + 1] = Processing.addErrorToColor(pixelMatrix[x - 1][y + 1], redError, greenError, blueError, 7.0 / 16);
+                    pixelMatrix[x - 1][y + 1] = Processing.addErrorToColor(pixelMatrix[x - 1][y + 1], redError, greenError, blueError, 3.0 / 16);
                 } catch (IndexOutOfBoundsException ignored) {
                 }
                 try {
-                    pixelMatrix[x][y + 1] = Processing.addErrorToColor(pixelMatrix[x][y + 1], redError, greenError, blueError, 3.0 / 16);
+                    pixelMatrix[x][y + 1] = Processing.addErrorToColor(pixelMatrix[x][y + 1], redError, greenError, blueError, 5.0 / 16);
                 } catch (IndexOutOfBoundsException ignored) {
                 }
                 try {
-                    pixelMatrix[x + 1][y + 1] = Processing.addErrorToColor(pixelMatrix[x + 1][y + 1], redError, greenError, blueError, 5.0 / 16);
+                    pixelMatrix[x + 1][y + 1] = Processing.addErrorToColor(pixelMatrix[x + 1][y + 1], redError, greenError, blueError, 1.0 / 16);
                 } catch (IndexOutOfBoundsException ignored) {
                 }
 

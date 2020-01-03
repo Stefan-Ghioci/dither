@@ -5,6 +5,10 @@ import javafx.scene.paint.Color;
 public class Processing {
 
 
+    public static Double getGray(Color color) {
+        return color.getRed() * 0.3 + color.getGreen() * 0.59 + color.getBlue() * 0.11;
+    }
+
     public static Color addErrorToColor(Color color, double redError, double greenError, double blueError, double x) {
         return new Color(
                 Math.min(1.0, Math.max(0.0, color.getRed() + redError * x)),
@@ -15,7 +19,7 @@ public class Processing {
 
     static Color quantize(Color color, int factor) {
         if (factor == 0) {
-            double gray = color.getRed() * 0.3 + color.getGreen() * 0.59 + color.getBlue() * 0.11;
+            double gray = getGray(color);
             double bw = Math.round(gray);
             return new Color(bw, bw, bw, color.getOpacity());
         }
